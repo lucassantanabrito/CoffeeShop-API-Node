@@ -27,3 +27,22 @@ drinksRouter.post(
     res.status(201).json(drink);
   }),
 );
+
+drinksRouter.put(
+  '/:type',
+  asyncHandler(async (req, res) => {
+    const input = newDrinkSchema.parse(req.body);
+    const drink = await drinkService.updateDrink(req.params.type, input);
+    events.drinkUpdated(drink);
+    res.json(drink);
+  }),
+);
+
+drinksRouter.delete(
+  '/:type',
+  asyncHandler(async (req, res) => {
+    await drinkService.deleteDrink(req.params.type);
+    events.drinkDeleted(req.params.type);
+    res.status(204).send();
+  }),
+);

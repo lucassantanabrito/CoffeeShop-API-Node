@@ -35,4 +35,35 @@ export const drinkService = {
       .returning();
     return drink;
   },
+
+  async updateDrink(type: DrinkType, input: NewDrinkInput): Promise<DrinkOption> {
+    const [existing] = await db
+      .select()
+      .from(drinkOptions)
+      .where(eq(drinkOptions.type, type));
+
+    if (!existing) {
+      const error = new Error(`Bebida ${type} não encontrada`) as Error & {code?: string};
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    const [drink] = await db
+      .update(drinkOptions)
+      .set({label: input.label, price: input.price, hasMilk: input.hasMilk})
+      .where(eq(drinkOptions.type, type))
+      .returning();
+
+    return drink;
+  },
+
+  async deleteDrink(type: DrinkType): Promise<void> {
+    const [existing] = await db.select().from(drinkOptions).where(eq(drinkOptions.type, type));
+    if (!existing) {
+      const error = new Error(`Bebida ${type} não encontrada`) as Error & {code?: string};
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+    await db.delete(drinkOptions).where(eq(drinkOptions.type, type));
+  }
 };

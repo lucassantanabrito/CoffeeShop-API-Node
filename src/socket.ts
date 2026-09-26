@@ -31,4 +31,6 @@ export const events = {
   orderUpdated: (order: Order) => emit('order:updated', order),
   orderDeleted: (orderId: string) => emit('order:deleted', {id: orderId}),
   drinkCreated: (drink: DrinkOption) => emit('drink:created', drink),
+  drinkUpdated: (drink: DrinkOption) => emit('drink:updated', drink),
+  drinkDeleted: (type: string) => emit('drink:deleted', {type}),
 };
