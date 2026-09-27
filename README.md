@@ -31,9 +31,11 @@ Todas as rotas de escrita validam o corpo da requisição com `zod` (`src/schema
 
 **Deliberadamente fora do escopo desta primeira versão:** endpoint de preço calculado (`getDrinkPrice`) — o cliente já tem os dados de `GET /drinks` + `GET /drinks/milk-options` para calcular isso localmente, sem round-trip. Autenticação/autorização também não foi implementada (API aberta), já que é um único estabelecimento com dispositivos confiáveis na mesma rede — revisar se o uso mudar (ex: acesso pela internet).
 
+`PUT /drinks/:type` e `DELETE /drinks/:type` editam/removem uma bebida do catálogo (emitem `drink:updated`/`drink:deleted`).
+
 ## Tempo real (Socket.io)
 
-O servidor Socket.io roda no mesmo processo/porta do Express. Eventos emitidos: `order:created`, `order:updated`, `order:deleted`, `drink:created` — cada um com o objeto serializado igual ao retorno REST correspondente. Testado manualmente com um cliente `socket.io-client` (não é dependência do backend — isso é responsabilidade do app cliente).
+O servidor Socket.io roda no mesmo processo/porta do Express. Eventos emitidos: `order:created`, `order:updated`, `order:deleted`, `drink:created`, `drink:updated`, `drink:deleted` — cada um com o objeto serializado igual ao retorno REST correspondente. Coberto pelos testes de `__tests__/realtime/` (ver seção Testes abaixo).
 
 ## Setup
 
@@ -46,7 +48,35 @@ npm run db:seed             # popula o catálogo inicial de bebidas
 npm run dev                 # sobe o servidor com reload automático (ts-node-dev)
 ```
 
-Produção: `npm run build && npm start`.
+Produção: `npm run build && npm start`. O `start` já roda `db:migrate` automaticamente antes de subir o servidor (importante em produção, onde o arquivo SQLite pode não existir ainda no volume persistente) — só `db:seed` continua manual, porque é opcional e específico do catálogo inicial.
+
+## Testes
+
+```bash
+npm test          # roda tudo (unitários + integração + Socket.io) uma vez
+npm run test:watch
+```
+
+Três camadas, todas em `__tests__/`, todas contra um SQLite **em memória** isolado (nunca toca no `dev.db` real):
+
+- `unit/` — `orderService`/`drinkService` isolados (cálculo de total, erros `NOT_FOUND`, geração do `type` auto-gerado).
+- `integration/` — rotas de `/orders` e `/drinks` fim a fim via `supertest` (validação do zod, 404s, etc.).
+- `realtime/` — conecta um client de `socket.io-client` de verdade contra um `httpServer` numa porta efêmera e confirma que as rotas emitem os eventos certos.
+
+## CI/CD
+
+- **CI** (`.github/workflows/ci.yml`): a cada push/PR na `main`, roda `typecheck`, `test` e `build` no GitHub Actions.
+- **CD**: deploy automático via integração nativa do [Railway](https://railway.app) com o repositório GitHub — configurado para só deployar depois que o CI passar ("Wait for CI" nas configurações do serviço no Railway). Nenhum workflow de deploy customizado; o Railway detecta o Node.js sozinho (via Nixpacks) e usa os scripts `build`/`start` do `package.json`.
+
+### Deploy no Railway
+
+1. Crie um projeto no Railway e conecte este repositório (`lucassantanabrito/CoffeeShop-API-Node`).
+2. Adicione um **volume persistente** ao serviço (ex: montado em `/data`) — sem isso, o arquivo SQLite seria apagado a cada redeploy.
+3. Configure as variáveis de ambiente do serviço:
+   - `DB_FILE=/data/coffeeshop.db` (caminho dentro do volume montado no passo 2)
+   - `PORT` não precisa ser definida — o Railway injeta a própria e o `index.ts` já lê `process.env.PORT`.
+4. Nas configurações do serviço, ative **"Wait for CI"** apontando pro workflow do GitHub Actions, pra garantir que só deploya código com os testes passando.
+5. Primeiro deploy: se quiser o catálogo inicial de bebidas populado, rode `npm run db:seed` uma vez via shell do Railway (`railway run npm run db:seed` pela CLI, ou o botão de shell no painel) — as migrações já rodam sozinhas a cada start.
 
 ## Vulnerabilidades conhecidas (dev-only)
 
@@ -58,7 +88,5 @@ Nenhum dos dois afeta o servidor rodando. Resolver exigiria downgrade do `drizzl
 
 ## Ainda não feito
 
-- **Integração com o app React Native.** O app já tem a abstração certa para isso: `IOrderService`/`IDrinkService` (`src/services/`) com `setOrderService`/`setDrinkService` nos stores Zustand. O próximo passo é criar implementações desses dois services que chamem esta API (fetch/axios) e um listener de Socket.io que atualize o `orderStore`/`drinkStore` quando os eventos chegarem — sem precisar mudar as telas.
-- Autenticação (se necessário no futuro).
-- Deploy/hosting (a decidir: rodar localmente na rede da cafeteria, um servidor na nuvem, etc. — influencia se `DB_FILE` deve virar Postgres).
-- Testes automatizados (nenhum teste ainda neste projeto; o app RN tem 33 testes, o backend não tem nenhum ainda).
+- Autenticação (se necessário no futuro — hoje é API aberta, ok pro cenário de um único estabelecimento com dispositivos confiáveis).
+- Se o volume de dados crescer muito além do que um único SQLite aguenta bem, considerar migrar pra Postgres (o Drizzle já suporta trocar de dialeto sem reescrever a lógica de negócio).
