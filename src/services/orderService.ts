@@ -12,12 +12,10 @@ function idToSeq(id: string): number {
   return seq;
 }
 
-async function loadOrder(seq: number): Promise<Order | null> {
-  const [orderRow] = await db.select().from(orders).where(eq(orders.seq, seq));
-  if (!orderRow) {
-    return null;
-  }
-  const itemRows = await db.select().from(orderItems).where(eq(orderItems.orderId, seq));
+export function toOrder(
+  orderRow: typeof orders.$inferSelect,
+  itemRows: (typeof orderItems.$inferSelect)[],
+): Order {
   return {
     id: String(orderRow.seq).padStart(3, '0'),
     customerName: orderRow.customerName,
@@ -34,6 +32,15 @@ async function loadOrder(seq: number): Promise<Order | null> {
       price: item.price,
     })),
   };
+}
+
+async function loadOrder(seq: number): Promise<Order | null> {
+  const [orderRow] = await db.select().from(orders).where(eq(orders.seq, seq));
+  if (!orderRow) {
+    return null;
+  }
+  const itemRows = await db.select().from(orderItems).where(eq(orderItems.orderId, seq));
+  return toOrder(orderRow, itemRows);
 }
 
 function computeTotal(items: CreateOrderDTO['items']): number {

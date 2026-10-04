@@ -3,3 +3,4 @@
 // sempre abra um SQLite em memória durante os testes — nunca o dev.db real.
 process.env.DB_FILE = ':memory:';
 process.env.NODE_ENV = 'test';
+process.env.BUSINESS_TIMEZONE = 'America/Sao_Paulo';

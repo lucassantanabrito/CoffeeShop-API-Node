@@ -27,6 +27,17 @@ Espelha exatamente os tipos do app (`Order`, `DrinkItem`, `DrinkOption`, `MilkOp
 - `GET /drinks/milk-options` — opções de leite (estático, espelha `MILK_OPTIONS` do app).
 - `POST /drinks` — cadastra uma bebida nova (`NewDrinkInput`). Emite `drink:created`.
 
+### Relatórios (painel web)
+
+Rotas somente leitura usadas pelo painel administrativo. "Hoje" e o agrupamento por dia usam o fuso `BUSINESS_TIMEZONE` (padrão `America/Sao_Paulo`). Parâmetros de query inválidos retornam `400`; filtros vazios (`status=`) são ignorados.
+
+- `GET /reports/summary?period=today|7d|30d` (padrão `today`) — métricas do período, cada uma com `value`, `previous` (período anterior de mesmo tamanho) e `deltaPct` (`null` se o anterior for 0): `orders` (todos os status), `revenue` e `averageTicket` (**só pedidos concluídos**), mais `topDrink` (`{type, label, quantity}` ou `null`, por quantidade vendida).
+- `GET /reports/orders-by-day?days=7` (1–90) — `[{date: 'YYYY-MM-DD', orders, revenue}]`, um item por dia local (inclusive sem pedidos), do mais antigo ao mais recente. `revenue` só conta concluídos.
+- `GET /reports/orders` — histórico paginado, do mais recente ao mais antigo. Filtros: `from`/`to` (`YYYY-MM-DD`, inclusivos, no fuso local), `status` (`pending|in_progress|completed`), `drink` (`type` da bebida; o pedido precisa conter o item), `search` (trecho do nome do cliente ou número do pedido, ex. `12` ou `#12`), `page` (padrão 1) e `pageSize` (padrão 20, máx. 100). Resposta: `{data: Order[], page, pageSize, total, totalPages}`. Os pedidos recentes do dashboard são `?pageSize=5`.
+- `GET /reports/orders.csv` — mesmos filtros (sem paginação, até 10.000 linhas) em CSV para Excel pt-BR (`;`, BOM UTF-8, valores com vírgula decimal), como download (`pedidos-YYYY-MM-DD.csv`).
+
+Limitação conhecida: a busca por nome usa `LIKE` do SQLite, que ignora maiúsculas/minúsculas só para caracteres ASCII (`lucas` acha `Lucas`, mas `joao` não acha `João`).
+
 Todas as rotas de escrita validam o corpo da requisição com `zod` (`src/schemas.ts`) e retornam `400` com detalhes em caso de erro.
 
 **Deliberadamente fora do escopo desta primeira versão:** endpoint de preço calculado (`getDrinkPrice`) — o cliente já tem os dados de `GET /drinks` + `GET /drinks/milk-options` para calcular isso localmente, sem round-trip. Autenticação/autorização também não foi implementada (API aberta), já que é um único estabelecimento com dispositivos confiáveis na mesma rede — revisar se o uso mudar (ex: acesso pela internet).
@@ -85,6 +96,10 @@ Três camadas, todas em `__tests__/`, todas contra um SQLite **em memória** iso
 - `esbuild` via `drizzle-kit` (usado só para gerar migrações localmente, nunca em produção).
 
 Nenhum dos dois afeta o servidor rodando. Resolver exigiria downgrade do `drizzle-kit` para uma versão bem mais antiga — não vale a pena para um problema puramente de tooling de desenvolvimento.
+
+## Dados de demonstração
+
+`npm run db:seed:demo` cria ~65 dias de pedidos **fictícios** (clientes inventados, mais movimento nos fins de semana e fila do barista simulada para "hoje") para testar o dashboard e o histórico do painel web. Pré-requisito: catálogo de bebidas populado (`npm run db:seed`). O script só roda em banco **sem pedidos** (recusa se já houver algum) e não tem comando de limpeza — para recomeçar, apague o `dev.db` e rode `db:migrate`, `db:seed` e `db:seed:demo` de novo.
 
 ## Ainda não feito
 

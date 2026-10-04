@@ -5,6 +5,7 @@ import {createServer} from 'http';
 import type {Server as HttpServer} from 'http';
 import {ordersRouter} from './routes/orders';
 import {drinksRouter} from './routes/drinks';
+import {reportsRouter} from './routes/reports';
 import {errorHandler} from './errorHandler';
 import {initSocket} from './socket';
 
@@ -29,6 +30,7 @@ export function createApp(): App {
 
   app.use('/orders', ordersRouter);
   app.use('/drinks', drinksRouter);
+  app.use('/reports', reportsRouter);
 
   app.use(errorHandler);
 
